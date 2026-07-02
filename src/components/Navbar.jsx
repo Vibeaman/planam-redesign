@@ -1,97 +1,68 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Menu, X, ArrowRight, User } from 'lucide-react'
+import { Menu, X, User, LogOut } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import AuthService from '../services/AuthService'
+import toast from 'react-hot-toast'
 
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const { user } = useAuth()
+  const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+  const { user, profile } = useAuth()
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40)
-    window.addEventListener('scroll', onScroll)
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  const navLinks = [
-    { label: 'Browse Events', to: '/events' },
-    { label: 'Create Event', to: '/create' },
-  ]
-
-  const close = () => setMenuOpen(false)
+  async function handleLogout() {
+    await AuthService.logout()
+    toast.success('Logged out')
+    navigate('/')
+  }
 
   return (
-    <nav style={{
-      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-      background: scrolled ? 'rgba(18,13,53,0.92)' : 'transparent',
-      backdropFilter: scrolled ? 'blur(16px)' : 'none',
-      borderBottom: scrolled ? '1px solid rgba(123,78,247,0.15)' : 'none',
-      transition: 'all 0.3s'
-    }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 72 }}>
-        {/* Logo */}
-        <Link to="/" onClick={close}>
-          <img src="/logo-white.svg" alt="planam.io" style={{ height: 34 }} />
+    <nav className="fixed top-0 w-full z-50 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/5">
+      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2">
+          <svg width="28" height="28" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="20" fill="#7C3AED"/><path d="M30 65V35l20 15-20 15z" fill="#fff"/><path d="M50 65V35l20 15-20 15z" fill="#fff" opacity=".6"/></svg>
+          <span className="text-lg font-bold text-white">planam<span className="text-purple-400">.io</span></span>
         </Link>
 
-        {/* Desktop links */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 32 }} className="hidden md:flex">
-          {navLinks.map(l => (
-            <Link key={l.to} to={l.to} style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.88rem', fontWeight: 500, textDecoration: 'none', transition: 'color 0.2s' }}
-              onMouseEnter={e => e.target.style.color = 'white'}
-              onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.75)'}
-            >{l.label}</Link>
-          ))}
-        </div>
-
-        {/* CTA */}
-        <div className="hidden md:flex" style={{ alignItems: 'center', gap: 12 }}>
+        {/* Desktop */}
+        <div className="hidden md:flex items-center gap-6">
+          <Link to="/events" className="text-gray-300 hover:text-white text-sm font-medium transition-colors">Browse Events</Link>
+          <Link to="/create" className="text-gray-300 hover:text-white text-sm font-medium transition-colors">Create Event</Link>
           {user ? (
-            <button onClick={() => navigate('/dashboard')} style={{
-              background: 'var(--purple)', border: 'none', color: 'white', width: 38, height: 38,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-              fontWeight: 800, fontSize: '0.85rem', borderRadius: '50%',
-            }}>
-              {user.name.charAt(0).toUpperCase()}
-            </button>
-          ) : (
-            <>
-              <Link to="/login" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none' }}>Sign In</Link>
-              <Link to="/signup" style={{ textDecoration: 'none' }}>
-                <button className="btn btn-purple">
-                  <span className="btn-label">SIGN UP</span>
-                  <span className="btn-arrow"><ArrowRight size={16} /></span>
-                </button>
+            <div className="flex items-center gap-3">
+              <Link to="/dashboard" className="flex items-center gap-2 bg-purple-600/20 text-purple-400 px-4 py-2 rounded-full text-sm font-medium hover:bg-purple-600/30 transition-colors">
+                <User className="w-4 h-4" />{profile?.full_name?.split(' ')[0] || 'Dashboard'}
               </Link>
-            </>
+              <button onClick={handleLogout} className="text-gray-400 hover:text-white p-2 transition-colors"><LogOut className="w-4 h-4" /></button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <Link to="/login" className="text-gray-300 hover:text-white text-sm font-medium transition-colors">Log In</Link>
+              <Link to="/signup" className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold px-5 py-2 rounded-full transition-colors">Sign Up</Link>
+            </div>
           )}
         </div>
 
         {/* Mobile toggle */}
-        <button className="md:hidden" onClick={() => setMenuOpen(!menuOpen)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
-          {menuOpen ? <X size={24} /> : <Menu size={24} />}
+        <button className="md:hidden text-white" onClick={() => setOpen(!open)}>
+          {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
 
       {/* Mobile menu */}
-      {menuOpen && (
-        <div className="md:hidden" style={{ background: 'rgba(18,13,53,0.97)', backdropFilter: 'blur(20px)', padding: '16px 24px 24px', borderTop: '1px solid rgba(123,78,247,0.15)' }}>
-          {navLinks.map(l => (
-            <Link key={l.to} to={l.to} onClick={close} style={{ display: 'block', padding: '12px 0', color: 'rgba(255,255,255,0.8)', fontSize: '1rem', fontWeight: 500, textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>{l.label}</Link>
-          ))}
+      {open && (
+        <div className="md:hidden bg-[#0a0a0f]/95 backdrop-blur-xl border-t border-white/5 px-4 py-6 space-y-4">
+          <Link to="/events" onClick={() => setOpen(false)} className="block text-gray-300 hover:text-white font-medium">Browse Events</Link>
+          <Link to="/create" onClick={() => setOpen(false)} className="block text-gray-300 hover:text-white font-medium">Create Event</Link>
           {user ? (
-            <Link to="/dashboard" onClick={close} style={{ display: 'block', padding: '12px 0', color: 'rgba(255,255,255,0.8)', fontSize: '1rem', fontWeight: 500, textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Dashboard</Link>
+            <>
+              <Link to="/dashboard" onClick={() => setOpen(false)} className="block text-gray-300 hover:text-white font-medium">Dashboard</Link>
+              <button onClick={() => { handleLogout(); setOpen(false) }} className="block text-gray-400 hover:text-white font-medium">Log Out</button>
+            </>
           ) : (
             <>
-              <Link to="/login" onClick={close} style={{ display: 'block', padding: '12px 0', color: 'rgba(255,255,255,0.8)', fontSize: '1rem', fontWeight: 500, textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Sign In</Link>
-              <Link to="/signup" onClick={close} style={{ textDecoration: 'none' }}>
-                <button className="btn btn-purple" style={{ marginTop: 16, width: '100%' }}>
-                  <span className="btn-label" style={{ flex: 1, justifyContent: 'center' }}>SIGN UP</span>
-                  <span className="btn-arrow"><ArrowRight size={16} /></span>
-                </button>
-              </Link>
+              <Link to="/login" onClick={() => setOpen(false)} className="block text-gray-300 hover:text-white font-medium">Log In</Link>
+              <Link to="/signup" onClick={() => setOpen(false)} className="block bg-purple-600 text-white text-center py-2.5 rounded-full font-semibold">Sign Up</Link>
             </>
           )}
         </div>

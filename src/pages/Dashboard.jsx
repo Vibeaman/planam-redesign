@@ -1,115 +1,117 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Ticket, CalendarPlus, User, LogOut, ArrowRight, MapPin, Clock } from 'lucide-react'
+import { Ticket, Calendar, User, LogOut, MapPin, Plus, Trash2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
+import AuthService from '../services/AuthService'
+import EventService from '../services/EventService'
+import TicketService from '../services/TicketService'
 import UserService from '../services/UserService'
 
-const tabs = [
+const TABS = [
   { id: 'tickets', label: 'My Tickets', icon: Ticket },
-  { id: 'events', label: 'My Events', icon: CalendarPlus },
+  { id: 'events', label: 'My Events', icon: Calendar },
   { id: 'profile', label: 'Profile', icon: User },
 ]
 
 export default function Dashboard() {
-  const { user, logout, updateProfile } = useAuth()
   const navigate = useNavigate()
+  const { user, profile, loading: authLoading, setProfile } = useAuth()
   const [tab, setTab] = useState('tickets')
-  const [profileForm, setProfileForm] = useState({ name: user?.name || '' })
+  const [tickets, setTickets] = useState([])
+  const [myEvents, setMyEvents] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [profileForm, setProfileForm] = useState({ full_name: '', email: '' })
 
-  if (!user) {
-    navigate('/login')
-    return null
-  }
+  useEffect(() => {
+    if (!authLoading && !user) { navigate('/login'); return }
+    if (!user) return
+    async function load() {
+      try {
+        const [t, e] = await Promise.all([
+          TicketService.getByUser(user.id),
+          EventService.getByOrganizer(user.id)
+        ])
+        setTickets(t || [])
+        setMyEvents(e || [])
+        if (profile) setProfileForm({ full_name: profile.full_name || '', email: profile.email || '' })
+      } catch (e) { console.error(e) }
+      finally { setLoading(false) }
+    }
+    load()
+  }, [user, authLoading, profile])
 
-  const myTickets = UserService.getMyTickets()
-  const myEvents = UserService.getMyEvents()
-
-  const handleLogout = () => {
-    logout()
+  async function handleLogout() {
+    await AuthService.logout()
+    toast.success('Logged out')
     navigate('/')
   }
 
-  const handleProfileSave = (e) => {
-    e.preventDefault()
-    updateProfile({ name: profileForm.name })
-    import('react-hot-toast').then(m => m.default.success('Profile updated!'))
+  async function handleDeleteEvent(id) {
+    if (!confirm('Delete this event?')) return
+    try {
+      await EventService.delete(id)
+      setMyEvents(ev => ev.filter(e => e.id !== id))
+      toast.success('Event deleted')
+    } catch (e) { toast.error(e.message) }
   }
 
+  async function handleUpdateProfile() {
+    try {
+      const updated = await UserService.updateProfile(user.id, { full_name: profileForm.full_name })
+      setProfile(updated)
+      toast.success('Profile updated!')
+    } catch (e) { toast.error(e.message) }
+  }
+
+  if (authLoading || loading) return <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center"><div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--dark)', paddingTop: 100, paddingBottom: 60 }}>
-      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 24px' }}>
+    <div className="min-h-screen bg-[#0a0a0f] pt-24 pb-16 px-4">
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 40 }}>
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 900, letterSpacing: '-0.02em' }}>
-              Hey, <span style={{ color: 'var(--purple-light)' }}>{user.name.split(' ')[0]}</span> 👋
-            </h1>
-            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem', marginTop: 4 }}>{user.email}</p>
+            <h1 className="text-3xl font-bold text-white">Dashboard</h1>
+            <p className="text-gray-400">Welcome back, {profile?.full_name || user?.email}</p>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => navigate('/create')} className="btn btn-purple" style={{ fontSize: '0.75rem' }}>
-              <span className="btn-label" style={{ padding: '10px 16px' }}><CalendarPlus size={14} /> CREATE EVENT</span>
-              <span className="btn-arrow" style={{ padding: '0 12px' }}><ArrowRight size={14} /></span>
-            </button>
-            <button onClick={handleLogout} style={{
-              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)',
-              padding: '0 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', fontWeight: 600,
-            }}>
-              <LogOut size={14} /> Sign Out
-            </button>
-          </div>
+          <button onClick={handleLogout} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-gray-300 px-4 py-2 rounded-xl transition-colors">
+            <LogOut className="w-4 h-4" /> Log out
+          </button>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 32 }}>
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: '14px 20px', background: 'none', border: 'none', borderBottom: '2px solid',
-              borderColor: tab === t.id ? 'var(--purple)' : 'transparent',
-              color: tab === t.id ? 'white' : 'rgba(255,255,255,0.4)',
-              fontSize: '0.88rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-              transition: 'all 0.2s',
-            }}>
-              <t.icon size={16} /> {t.label}
+        <div className="flex gap-2 mb-8 overflow-x-auto">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm whitespace-nowrap transition-colors ${tab === t.id ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+              <t.icon className="w-4 h-4" />{t.label}
             </button>
           ))}
         </div>
 
-        {/* My Tickets */}
+        {/* Tickets tab */}
         {tab === 'tickets' && (
           <div>
-            {myTickets.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.4)' }}>
-                <Ticket size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
-                <p style={{ fontWeight: 700, marginBottom: 8 }}>No tickets yet</p>
-                <p style={{ fontSize: '0.88rem', marginBottom: 20 }}>Browse events and grab some tickets!</p>
-                <button onClick={() => navigate('/events')} className="btn btn-purple">
-                  <span className="btn-label">BROWSE EVENTS</span>
-                  <span className="btn-arrow"><ArrowRight size={16} /></span>
-                </button>
+            {tickets.length === 0 ? (
+              <div className="text-center py-16 bg-white/5 border border-white/10 rounded-2xl">
+                <Ticket className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400 mb-4">No tickets yet</p>
+                <Link to="/events" className="text-purple-400 hover:text-purple-300 font-medium">Browse Events →</Link>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {myTickets.map(t => (
-                  <div key={t.id} onClick={() => navigate(`/events/${t.eventId}`)} style={{
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                    padding: '20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    flexWrap: 'wrap', gap: 12, transition: 'border-color 0.2s',
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(123,78,247,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
-                  >
+              <div className="space-y-4">
+                {tickets.map(t => (
+                  <div key={t.id} className="bg-white/5 border border-white/10 rounded-xl p-5 flex items-center justify-between hover:border-purple-500/30 transition cursor-pointer"
+                    onClick={() => navigate(`/events/${t.event_id}`)}>
                     <div>
-                      <h3 style={{ fontWeight: 800, marginBottom: 4 }}>{t.eventTitle}</h3>
-                      <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)' }}>
-                        {t.tier} × {t.quantity} · Purchased {new Date(t.purchasedAt).toLocaleDateString()}
-                      </span>
+                      <h3 className="text-white font-bold">{t.event_title}</h3>
+                      <p className="text-gray-400 text-sm">{t.tier_name} · x{t.quantity}</p>
+                      <p className="text-gray-500 text-xs mt-1">{new Date(t.purchased_at).toLocaleDateString()}</p>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontWeight: 800, fontSize: '1.1rem', color: t.total === 0 ? '#4ade80' : 'var(--purple-light)' }}>
-                        {t.total === 0 ? 'FREE' : `₦${t.total.toLocaleString()}`}
-                      </span>
-                      <span style={{ display: 'block', fontSize: '0.72rem', color: '#4ade80', fontWeight: 700, marginTop: 2 }}>✓ {t.status}</span>
+                    <div className="text-right">
+                      <p className="text-purple-400 font-bold">₦{Number(t.total_price).toLocaleString()}</p>
+                      <span className="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">Confirmed</span>
                     </div>
                   </div>
                 ))}
@@ -118,36 +120,33 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* My Events */}
+        {/* My Events tab */}
         {tab === 'events' && (
           <div>
+            <div className="flex justify-end mb-4">
+              <Link to="/create" className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl font-medium text-sm transition-colors">
+                <Plus className="w-4 h-4" /> New Event
+              </Link>
+            </div>
             {myEvents.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.4)' }}>
-                <CalendarPlus size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
-                <p style={{ fontWeight: 700, marginBottom: 8 }}>No events created</p>
-                <p style={{ fontSize: '0.88rem', marginBottom: 20 }}>Ready to host your first event?</p>
-                <button onClick={() => navigate('/create')} className="btn btn-purple">
-                  <span className="btn-label">CREATE EVENT</span>
-                  <span className="btn-arrow"><ArrowRight size={16} /></span>
-                </button>
+              <div className="text-center py-16 bg-white/5 border border-white/10 rounded-2xl">
+                <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400 mb-4">You haven't created any events</p>
+                <Link to="/create" className="text-purple-400 hover:text-purple-300 font-medium">Create Your First Event →</Link>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
-                {myEvents.map(e => (
-                  <div key={e.id} onClick={() => navigate(`/events/${e.id}`)} style={{
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                    overflow: 'hidden', cursor: 'pointer', transition: 'border-color 0.2s',
-                  }}
-                    onMouseEnter={ev => ev.currentTarget.style.borderColor = 'rgba(123,78,247,0.3)'}
-                    onMouseLeave={ev => ev.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
-                  >
-                    <div style={{ height: 120, overflow: 'hidden' }}>
-                      <img src={e.image} alt={e.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div className="space-y-4">
+                {myEvents.map(ev => (
+                  <div key={ev.id} className="bg-white/5 border border-white/10 rounded-xl p-5 flex items-center justify-between">
+                    <div className="flex items-center gap-4 cursor-pointer" onClick={() => navigate(`/events/${ev.id}`)}>
+                      {ev.image && <img src={ev.image} alt="" className="w-16 h-16 rounded-lg object-cover hidden sm:block" />}
+                      <div>
+                        <h3 className="text-white font-bold">{ev.title}</h3>
+                        <p className="text-gray-400 text-sm flex items-center gap-1"><Calendar className="w-3 h-3" />{ev.date}</p>
+                        <p className="text-gray-500 text-sm flex items-center gap-1"><MapPin className="w-3 h-3" />{ev.location}</p>
+                      </div>
                     </div>
-                    <div style={{ padding: 16 }}>
-                      <h3 style={{ fontWeight: 800, marginBottom: 6 }}>{e.title}</h3>
-                      <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)' }}>{e.date} · {e.location}</span>
-                    </div>
+                    <button onClick={() => handleDeleteEvent(ev.id)} className="text-red-400 hover:text-red-300 p-2"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 ))}
               </div>
@@ -155,27 +154,26 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Profile */}
+        {/* Profile tab */}
         {tab === 'profile' && (
-          <form onSubmit={handleProfileSave} style={{ maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Full Name</label>
-              <input type="text" value={profileForm.name} onChange={e => setProfileForm({ name: e.target.value })}
-                style={{ width: '100%', padding: '14px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '0.95rem', outline: 'none' }}
-                onFocus={e => e.target.style.borderColor = 'var(--purple)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-              />
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-8 max-w-lg">
+            <h2 className="text-xl font-bold text-white mb-6">Your Profile</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-300 mb-1 block">Full Name</label>
+                <input value={profileForm.full_name} onChange={e => setProfileForm(f => ({ ...f, full_name: e.target.value }))}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-300 mb-1 block">Email</label>
+                <input value={user?.email || ''} disabled className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-500 cursor-not-allowed" />
+              </div>
+              <button onClick={handleUpdateProfile}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors">
+                Save Changes
+              </button>
             </div>
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</label>
-              <input type="email" value={user.email} disabled
-                style={{ width: '100%', padding: '14px 16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', fontSize: '0.95rem' }}
-              />
-            </div>
-            <button type="submit" className="btn btn-purple" style={{ alignSelf: 'flex-start' }}>
-              <span className="btn-label">SAVE CHANGES</span>
-              <span className="btn-arrow"><ArrowRight size={16} /></span>
-            </button>
-          </form>
+          </div>
         )}
       </div>
     </div>

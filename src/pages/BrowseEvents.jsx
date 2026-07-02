@@ -1,113 +1,129 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { Search, SlidersHorizontal, X } from 'lucide-react'
+import { Search, SlidersHorizontal, MapPin, Calendar, Ticket, ArrowRight } from 'lucide-react'
 import EventService from '../services/EventService'
-import EventCard from '../components/EventCard'
 
-const allCategories = ['All', 'Music', 'Tech', 'Art', 'Food', 'Sports', 'Comedy', 'Festivals', 'Community']
-const sortOptions = [
-  { value: 'date', label: 'Date' },
-  { value: 'demand', label: 'Popularity' },
-  { value: 'price', label: 'Price (Low → High)' },
-]
+const CATEGORIES = ['All','Music','Tech','Art','Food','Sports','Comedy','Festivals','Community','Party']
 
 export default function BrowseEvents() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const [query, setQuery] = useState(searchParams.get('q') || '')
-  const [category, setCategory] = useState(searchParams.get('cat') || 'All')
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState(searchParams.get('q') || '')
+  const [category, setCategory] = useState('All')
   const [sort, setSort] = useState('date')
 
-  const events = useMemo(() => {
-    return EventService.search({
-      query,
-      category: category === 'All' ? '' : category,
-      sort,
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      try {
+        const q = searchParams.get('q')
+        const data = q ? await EventService.search(q) : await EventService.getAll()
+        setEvents(data)
+        if (q) setSearch(q)
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [searchParams])
+
+  const filtered = useMemo(() => {
+    let list = [...events]
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter(e => e.title.toLowerCase().includes(q) || e.location?.toLowerCase().includes(q) || e.category?.toLowerCase().includes(q))
+    }
+    if (category !== 'All') list = list.filter(e => e.category?.toLowerCase() === category.toLowerCase())
+    if (sort === 'date') list.sort((a, b) => new Date(a.date) - new Date(b.date))
+    else if (sort === 'popular') list.sort((a, b) => (b.watchers || 0) - (a.watchers || 0))
+    else if (sort === 'price') list.sort((a, b) => {
+      const pa = a.ticket_tiers?.[0]?.price || 0
+      const pb = b.ticket_tiers?.[0]?.price || 0
+      return pa - pb
     })
-  }, [query, category, sort])
+    return list
+  }, [events, search, category, sort])
 
-  const handleSearch = (e) => {
+  function handleSearch(e) {
     e.preventDefault()
-    setSearchParams(query ? { q: query } : {})
-  }
-
-  const selectStyle = {
-    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-    color: 'white', padding: '10px 14px', fontSize: '0.85rem', outline: 'none', cursor: 'pointer',
+    navigate(`/events?q=${encodeURIComponent(search)}`)
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--dark)', paddingTop: 100, paddingBottom: 60 }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
-        {/* Header */}
-        <h1 style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 8 }}>
-          Browse <span style={{ color: 'var(--purple-light)', fontStyle: 'italic' }}>Events</span>
-        </h1>
-        <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: 32, fontSize: '0.95rem' }}>
-          Discover amazing events happening across Africa
-        </p>
-
-        {/* Search + Filters */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 32 }}>
-          <form onSubmit={handleSearch} style={{ flex: '1 1 300px', display: 'flex', alignItems: 'stretch', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px' }}>
-              <Search size={16} style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }} />
-              <input type="text" placeholder="Search events, artists, venues…" value={query}
-                onChange={e => setQuery(e.target.value)}
-                style={{ background: 'none', border: 'none', outline: 'none', color: 'white', width: '100%', fontSize: '0.9rem', padding: '12px 0' }}
-              />
-              {query && (
-                <button type="button" onClick={() => { setQuery(''); setSearchParams({}) }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-            <button type="submit" style={{ background: 'var(--purple)', border: 'none', color: 'white', padding: '0 20px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
-              SEARCH
-            </button>
-          </form>
-          <select value={sort} onChange={e => setSort(e.target.value)} style={selectStyle}>
-            {sortOptions.map(o => <option key={o.value} value={o.value} style={{ background: '#120D35' }}>{o.label}</option>)}
-          </select>
+    <div className="min-h-screen bg-[#0a0a0f] pt-24 pb-16 px-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-bold text-white mb-3">Browse Events</h1>
+          <p className="text-gray-400 text-lg">Discover amazing events happening across Africa</p>
         </div>
 
-        {/* Category pills */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 40 }}>
-          {allCategories.map(c => (
-            <button key={c} onClick={() => setCategory(c)}
-              style={{
-                padding: '8px 18px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-                border: '1px solid',
-                borderColor: category === c ? 'var(--purple)' : 'rgba(255,255,255,0.1)',
-                background: category === c ? 'var(--purple)' : 'rgba(255,255,255,0.04)',
-                color: category === c ? 'white' : 'rgba(255,255,255,0.6)',
-                transition: 'all 0.2s',
-              }}
-            >{c}</button>
-          ))}
+        {/* Search & Filters */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8">
+          <form onSubmit={handleSearch} className="flex gap-3 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                placeholder="Search events, venues, cities..." />
+            </div>
+            <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors">Search</button>
+          </form>
+          <div className="flex flex-wrap gap-3 items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map(c => (
+                <button key={c} onClick={() => setCategory(c)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${category === c ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4 text-gray-500" />
+              <select value={sort} onChange={e => setSort(e.target.value)}
+                className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none">
+                <option value="date">Sort by Date</option>
+                <option value="popular">Most Popular</option>
+                <option value="price">Lowest Price</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         {/* Results */}
-        {events.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: 'rgba(255,255,255,0.4)' }}>
-            <p style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 8 }}>No events found</p>
-            <p style={{ fontSize: '0.9rem' }}>Try adjusting your search or filters</p>
+        {loading ? (
+          <div className="text-center py-20"><div className="inline-block w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-gray-400 text-lg">No events found</p>
+            <button onClick={() => { setSearch(''); setCategory('All') }} className="mt-4 text-purple-400 hover:text-purple-300">Clear filters</button>
           </div>
         ) : (
-          <>
-            <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.4)', marginBottom: 20 }}>{events.length} event{events.length !== 1 ? 's' : ''} found</p>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: 24,
-            }}>
-              {events.map(e => (
-                <div key={e.id} onClick={() => navigate(`/events/${e.id}`)} style={{ cursor: 'pointer' }}>
-                  <EventCard event={e} />
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map(event => (
+              <div key={event.id} onClick={() => navigate(`/events/${event.id}`)}
+                className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:border-purple-500/50 transition-all cursor-pointer group">
+                <div className="relative h-48 overflow-hidden">
+                  <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <span className="absolute top-3 left-3 bg-purple-600/90 text-white text-xs font-bold px-3 py-1 rounded-full">{event.category}</span>
                 </div>
-              ))}
-            </div>
-          </>
+                <div className="p-5">
+                  <h3 className="text-white font-bold text-lg mb-2 group-hover:text-purple-400 transition-colors">{event.title}</h3>
+                  <div className="space-y-1.5 mb-4">
+                    <div className="flex items-center gap-2 text-gray-400 text-sm"><Calendar className="w-4 h-4" />{event.date}</div>
+                    <div className="flex items-center gap-2 text-gray-400 text-sm"><MapPin className="w-4 h-4" />{event.location}</div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-purple-400 font-bold">₦{(event.ticket_tiers?.[0]?.price || 0).toLocaleString()}</span>
+                    <span className="flex items-center gap-1 text-sm text-gray-400"><Ticket className="w-4 h-4" />Get Tickets <ArrowRight className="w-4 h-4" /></span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

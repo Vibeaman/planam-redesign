@@ -1,70 +1,67 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Eye, EyeOff } from 'lucide-react'
-import { useAuth } from '../context/AuthContext'
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
+import AuthService from '../services/AuthService'
 
 export default function Login() {
-  const { login } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState({ email: '', password: '' })
-  const [showPw, setShowPw] = useState(false)
+  const [show, setShow] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  function update(e) { setForm(f => ({ ...f, [e.target.name]: e.target.value })) }
 
-  const handleSubmit = (e) => {
+  async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
-    const result = login({ email: form.email, password: form.password })
-    setLoading(false)
-    if (result.ok) {
-      toast.success('Welcome back! 🔥')
+    try {
+      await AuthService.login({ email: form.email, password: form.password })
+      toast.success('Welcome back!')
       navigate('/dashboard')
-    } else {
-      toast.error(result.error)
+    } catch (err) {
+      toast.error(err.message || 'Login failed')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const inputStyle = {
-    width: '100%', padding: '14px 16px', background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '0.95rem',
-    outline: 'none', transition: 'border-color 0.2s',
-  }
-
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '120px 24px 60px' }}>
-      <div style={{ width: '100%', maxWidth: 440 }}>
-        <Link to="/" style={{ display: 'block', marginBottom: 40 }}>
-          <img src="/logo-white.svg" alt="planam.io" style={{ height: 32 }} />
-        </Link>
-        <h1 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: 8 }}>Welcome back</h1>
-        <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: 32, fontSize: '0.95rem' }}>
-          Sign in to your Planam account. Don't have one? <Link to="/signup" style={{ color: 'var(--purple-light)', textDecoration: 'none', fontWeight: 600 }}>Create account</Link>
-        </p>
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center px-4 py-20">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
+          <p className="text-gray-400">Log in to your Planam account</p>
+        </div>
+        <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 rounded-2xl p-8 space-y-5">
           <div>
-            <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</label>
-            <input type="email" required placeholder="you@email.com" value={form.email} onChange={e => set('email', e.target.value)} style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--purple)'}
-              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-            />
+            <label className="text-sm text-gray-300 mb-1 block">Email</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <input name="email" type="email" value={form.email} onChange={update} required
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                placeholder="you@email.com" />
+            </div>
           </div>
-          <div style={{ position: 'relative' }}>
-            <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginBottom: 6, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Password</label>
-            <input type={showPw ? 'text' : 'password'} required placeholder="Your password" value={form.password} onChange={e => set('password', e.target.value)} style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--purple)'}
-              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-            />
-            <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: 14, top: 38, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
-              {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
+          <div>
+            <label className="text-sm text-gray-300 mb-1 block">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <input name="password" type={show ? 'text' : 'password'} value={form.password} onChange={update} required
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-11 pr-11 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                placeholder="Your password" />
+              <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
-          <button type="submit" className="btn btn-purple" disabled={loading} style={{ marginTop: 8, width: '100%', justifyContent: 'center' }}>
-            <span className="btn-label" style={{ flex: 1, justifyContent: 'center' }}>{loading ? 'SIGNING IN…' : 'SIGN IN'}</span>
-            <span className="btn-arrow"><ArrowRight size={16} /></span>
+          <button type="submit" disabled={loading}
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors">
+            {loading ? 'Logging in...' : <><span>Log In</span><ArrowRight className="w-5 h-5" /></>}
           </button>
+          <p className="text-center text-gray-400 text-sm">
+            Don't have an account? <Link to="/signup" className="text-purple-400 hover:text-purple-300 font-medium">Sign up</Link>
+          </p>
         </form>
       </div>
     </div>

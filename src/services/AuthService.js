@@ -1,67 +1,42 @@
-const USERS_KEY = 'planam_users'
-const SESSION_KEY = 'planam_session'
-
-function getUsers() {
-  return JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
-}
-function saveUsers(users) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
-}
-function getSession() {
-  const s = localStorage.getItem(SESSION_KEY)
-  return s ? JSON.parse(s) : null
-}
+import { supabase } from '../lib/supabase'
 
 const AuthService = {
-  signup({ name, email, password }) {
-    const users = getUsers()
-    if (users.find(u => u.email === email)) {
-      return { ok: false, error: 'Email already registered' }
-    }
-    const user = {
-      id: 'usr-' + Date.now(),
-      name,
+  async signUp({ fullName, email, password }) {
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      avatar: null,
-      createdAt: new Date().toISOString(),
-    }
-    users.push(user)
-    saveUsers(users)
-    const session = { id: user.id, name: user.name, email: user.email, avatar: user.avatar }
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-    return { ok: true, user: session }
+      options: { data: { full_name: fullName } }
+    })
+    if (error) throw error
+    return data.user
   },
 
-  login({ email, password }) {
-    const users = getUsers()
-    const user = users.find(u => u.email === email && u.password === password)
-    if (!user) return { ok: false, error: 'Invalid email or password' }
-    const session = { id: user.id, name: user.name, email: user.email, avatar: user.avatar }
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-    return { ok: true, user: session }
+  async login({ email, password }) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+    return data.user
   },
 
-  logout() {
-    localStorage.removeItem(SESSION_KEY)
+  async logout() {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
   },
 
-  getCurrentUser() {
-    return getSession()
+  async getSession() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session
   },
 
-  updateProfile(updates) {
-    const session = getSession()
-    if (!session) return null
-    const users = getUsers()
-    const idx = users.findIndex(u => u.id === session.id)
-    if (idx === -1) return null
-    Object.assign(users[idx], updates)
-    saveUsers(users)
-    const updated = { id: users[idx].id, name: users[idx].name, email: users[idx].email, avatar: users[idx].avatar }
-    localStorage.setItem(SESSION_KEY, JSON.stringify(updated))
-    return updated
+  async getCurrentUser() {
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
   },
+
+  onAuthStateChange(callback) {
+    return supabase.auth.onAuthStateChange((_event, session) => {
+      callback(session?.user || null)
+    })
+  }
 }
 
 export default AuthService

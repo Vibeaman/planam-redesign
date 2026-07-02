@@ -1,43 +1,54 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import AuthService from '../services/AuthService'
+import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => AuthService.getCurrentUser())
+  const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const signup = (data) => {
-    const result = AuthService.signup(data)
-    if (result.ok) setUser(result.user)
-    return result
+  async function fetchProfile(userId) {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      setProfile(data)
+    } catch (e) {
+      console.warn('Profile fetch failed:', e.message)
+    }
   }
 
-  const login = (data) => {
-    const result = AuthService.login(data)
-    if (result.ok) setUser(result.user)
-    return result
-  }
+  useEffect(() => {
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user || null
+      setUser(u)
+      if (u) fetchProfile(u.id)
+      setLoading(false)
+    })
 
-  const logout = () => {
-    AuthService.logout()
-    setUser(null)
-  }
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const u = session?.user || null
+        setUser(u)
+        if (u) fetchProfile(u.id)
+        else setProfile(null)
+      }
+    )
 
-  const updateProfile = (updates) => {
-    const updated = AuthService.updateProfile(updates)
-    if (updated) setUser(updated)
-    return updated
-  }
+    return () => subscription.unsubscribe()
+  }, [])
 
-  return (
-    <AuthContext.Provider value={{ user, signup, login, logout, updateProfile }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  const value = { user, profile, loading, setProfile }
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
   const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be inside AuthProvider')
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
   return ctx
 }
